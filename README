@@ -44,30 +44,58 @@ example
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RNGModule = require(Replicated:WaitForChild("RNGModule"))
 local rarities = {
-	Common = {Tier = 1, Base = 0.5},
-	Uncommon = {Tier = 2, Base = 0.3},
-	Rare = {Tier = 3, Base = 0.15},
-	Epic = {Tier = 4, Base = 0.045},
-	Legendary = {Tier = 5, Base = 0.005}
+	Starter = {
+		Cost = 100,
+		Rarities = {
+			Common = {Tier = 1, Base = 0.5},
+			Uncommon = {Tier = 2, Base = 0.3},
+			Rare = {Tier = 3, Base = 0.15},
+			Epic = {Tier = 4, Base = 0.045},
+			Legendary = {Tier = 5, Base = 0.005}
+		}
+	}
 }
 
-local engine = RNGModule.new({Rarities = rarities})
-local state = RNGModule.newState()
+local engine = RNGModule.new({
+	Rarities = rarities.Starter.Rarities,
+	Pity = {
+		SoftStart = 0,
+		SoftGain = 0.05,
+		HardCap = 100,
+		HardReward = 'Epic'
+	}
+})
 
-for i = 1, 20 do
-	local r = engine:roll(state, 1)
-	print(r.Rarity, r.Tier) -- RarityName, Tier that is what prints out
+local state = RNGModule.newState()
+state.PityMeter = 0
+state.PityTargetTiers = {2, 3, 4, 5}
+
+local bulk = engine:bulk(state, 1, 1, rarities.Starter.Cost, {Coins = 1e3}, 'Coins')
+for rarity, count in pairs(bulk) do
+	print(rarity .. '( ' .. count .. ' )')
 end
-prints smth like this
-  Common 1 (x2)
+  Uncommon( 1 )
+for i = 1, 30 do
+	local test = engine:roll(state, 1, rarities.Starter.Cost, {Coins = 1e3}, 'Coins')
+	print(test.Rarity, test.Tier)
+end
+  Common 1
   Uncommon 2
-  Common 1 (x4)
+   ▶ Common 1 (x2)
+  Epic 4
+   ▶ Common 1 (x2)
+  Epic 4
+  Common 1
+  Legendary 5
+   ▶ Common 1 (x3)
   Uncommon 2
   Common 1
-  Rare 3
-  Epic 4 (x2)
-  Uncommon 2
-  Common 1 (x3)
-  Uncommon 2 (x2)
+   ▶ Uncommon 2 (x3)
+  Common 1
+  Legendary 5
   Rare 3
   Common 1
+   ▶ Uncommon 2 (x3)
+   ▶ Common 1 (x2)
+  Uncommon 2
+   ▶ Common 1 (x2)
