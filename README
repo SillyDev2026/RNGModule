@@ -1,0 +1,73 @@
+RNG Module - Lua Randomness Engine
+-----------------------------------
+
+This module provides a robust, flexible random number generation system
+designed for games with rarity-based mechanics, such as loot boxes, gacha,
+or idle games. It supports advanced features including:
+
+- Rarity-based rolls with customizable tiers and base probabilities.
+- Luck modifiers that influence roll outcomes.
+- Soft and hard pity rules to ensure fairness over time.
+- Entropy and bad luck adjustments to prevent long streaks of poor results.
+- Banner multipliers to temporarily boost specific groups of rarities.
+- Bulk rolling with automatic count tracking.
+- Expected roll calculations to estimate how many rolls are needed for each rarity.
+- Chance text output for displaying probabilities in a readable format.
+- Dry streak tracking for rarities or tiers.
+- State resetting to start fresh when needed.
+
+Key Types:
+- RarityDef: Defines a rarity with Tier, Base chance, and optional Group.
+- PityRule: Optional soft and hard pity configuration.
+- BannerRule: Optional group multiplier configuration.
+- RNGState: Tracks the engine state including total rolls, last rarity, entropy, and failures.
+- RollResult: Represents the result of a roll with Rarity and Tier.
+
+Main Functions:
+- RNG.new(config): Create a new RNG engine with rarities, pity, and banners.
+- RNG.newState(seed): Initialize a new state for the engine.
+- roll(state, luck?): Roll once with optional luck modifier.
+- bulk(state, rolls, luck?): Perform multiple rolls and get counts by rarity.
+- getExpected(luck?): Get base probabilities for all rarities considering luck.
+- getChanceText(luck?): Returns a formatted string of probabilities.
+- getNextRollChances(state, luck?): Returns normalized probabilities for the next roll.
+- getExpectedRollsFor(state, rarity, luck?): Expected number of rolls to get a specific rarity.
+- getExpectedRollsText(state, luck?): Text listing expected rolls for all rarities.
+- getDryStreak(state, rarity): Returns number of rolls without a specific rarity.
+- getTierDryStreak(state, tier): Returns number of rolls without a specific tier.
+- resetState(state): Resets the RNG state completely.
+
+This module is designed to be flexible and extensible, making it ideal for
+implementing fair, predictable, and enjoyable random reward systems in Lua-based games.
+
+example
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RNGModule = require(Replicated:WaitForChild("RNGModule"))
+local rarities = {
+	Common = {Tier = 1, Base = 0.5},
+	Uncommon = {Tier = 2, Base = 0.3},
+	Rare = {Tier = 3, Base = 0.15},
+	Epic = {Tier = 4, Base = 0.045},
+	Legendary = {Tier = 5, Base = 0.005}
+}
+
+local engine = RNGModule.new({Rarities = rarities})
+local state = RNGModule.newState()
+
+for i = 1, 20 do
+	local r = engine:roll(state, 1)
+	print(r.Rarity, r.Tier) -- RarityName, Tier that is what prints out
+end
+prints smth like this
+  Common 1 (x2)
+  Uncommon 2
+  Common 1 (x4)
+  Uncommon 2
+  Common 1
+  Rare 3
+  Epic 4 (x2)
+  Uncommon 2
+  Common 1 (x3)
+  Uncommon 2 (x2)
+  Rare 3
+  Common 1
