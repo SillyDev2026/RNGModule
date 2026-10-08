@@ -72,7 +72,7 @@ function RNG:roll(state: RNGState, luck: number?, rollCost: number?, currency: {
 	assert(type(effectiveLuck) == "number" and effectiveLuck == effectiveLuck and effectiveLuck >= 0 and effectiveLuck < math.huge, "Invalid luck")
 	if currency and poolName then
 		local balance = currency[poolName]
-		if type(balance) ~= "number" or balance < rollCost then
+		if type(balance) ~= "number" or balance ~= balance or balance < rollCost or balance == math.huge then
 			return nil, "INSUFFICIENT_CURRENCY"
 		end
 		currency[poolName] = balance - rollCost
@@ -173,7 +173,7 @@ function RNG:bulk(state: RNGState, rolls: number, luck: number?, rollCost: numbe
 	if currency and poolName then
 		local balance = currency[poolName] or 0
 		local totalCost = rollCost * rolls
-		if totalCost == math.huge or balance < totalCost then
+		if type(balance) ~= "number" or balance ~= balance or balance == math.huge or totalCost == math.huge or balance < totalCost then
 			warn('Currency is not enough to roll bulk')
 			return results
 		end
