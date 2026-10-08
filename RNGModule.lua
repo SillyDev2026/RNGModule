@@ -15,7 +15,7 @@ export type RNGState = {
 export type RollResult = {Rarity: RarityName, Tier: number}
 export type RNGEngine = {
 	Rarities: RarityTable, Pity: PityRule?, Banners: {BannerRule},
-	roll: (self: RNGEngine, state: RNGState, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?) -> RollResult,
+	roll: (self: RNGEngine, state: RNGState, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?) -> (RollResult?, string?),
 	bulk: (self: RNGEngine, state: RNGState, rolls: number, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?) -> {[RarityName]: number},
 	getExpected: (self: RNGEngine, luck: number?) -> {[RarityName]: number},
 	getDryStreak: (self: RNGEngine, state: RNGState, rarity: RarityName) -> number,
@@ -181,7 +181,9 @@ function RNG:bulk(state: RNGState, rolls: number, luck: number?, rollCost: numbe
 	end
 	for _=1,rolls do
 		local r = self:roll(state, luck, 0, nil, nil)
-		results[r.Rarity] = (results[r.Rarity] or 0) + 1
+		if r then
+			results[r.Rarity] = (results[r.Rarity] or 0) + 1
+		end
 	end
 	return results
 end
