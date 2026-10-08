@@ -67,15 +67,16 @@ end
 
 function RNG:roll(state: RNGState, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?)
 	rollCost = rollCost or 0
-	if currency and poolName and currency[poolName] then
-		if currency[poolName] >= rollCost then
-			currency[poolName] = currency[poolName] - rollCost
-		else
-			warn('Not enough Currnecy to roll for:', poolName)
-		end
-	end
-
+	assert(type(rollCost) == "number" and rollCost == rollCost and rollCost >= 0 and rollCost < math.huge, "Invalid roll cost")
 	local effectiveLuck = luck or 1
+	assert(type(effectiveLuck) == "number" and effectiveLuck == effectiveLuck and effectiveLuck >= 0 and effectiveLuck < math.huge, "Invalid luck")
+	if currency and poolName then
+		local balance = currency[poolName]
+		if type(balance) ~= "number" or balance < rollCost then
+			return nil, "INSUFFICIENT_CURRENCY"
+		end
+		currency[poolName] = balance - rollCost
+	end
 	state.TotalRolls += 1
 
 	if state.PityMeter ~= nil then
@@ -164,11 +165,15 @@ end
 
 function RNG:bulk(state: RNGState, rolls: number, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?)
 	local results: {[RarityName]: number} = {}
+	assert(type(rolls) == "number" and rolls == rolls and rolls >= 0 and rolls % 1 == 0 and rolls < math.huge, "Invalid bulk roll count")
 	rollCost = rollCost or 0
+	assert(type(rollCost) == "number" and rollCost == rollCost and rollCost >= 0 and rollCost < math.huge, "Invalid bulk roll cost")
+	local effectiveLuck = luck or 1
+	assert(type(effectiveLuck) == "number" and effectiveLuck == effectiveLuck and effectiveLuck >= 0 and effectiveLuck < math.huge, "Invalid luck")
 	if currency and poolName then
 		local balance = currency[poolName] or 0
 		local totalCost = rollCost * rolls
-		if balance < totalCost then
+		if totalCost == math.huge or balance < totalCost then
 			warn('Currency is not enough to roll bulk')
 			return results
 		end
@@ -200,18 +205,22 @@ end
 
 function RNG:getChanceText(luck: number?): string
 	local effLuck = luck or 1
-	local lines = {}
-	for name, def in pairs(self.Rarities) do
-		local prob = def.Base + luckModifier(effLuck, def.Tier) + (self.Pity and self.Pity.SoftGain and pityModifier({TierFails={}, LastTier=0}, def.Tier) or 0) + bannerModifier(def, self.Banners)
-		prob = math.max(prob,0)
-		table.insert(lines, string.format('%s: %.2f%%', name, prob*100))
+	local names = {}
+	for name in pairs(self.Rarities) do
+		names[#names + 1] = name
 	end
-	table.sort(lines,function(a,b)
-		local tierA = self.Rarities[a:match('^(%w+):')].Tier
-		local tierB = self.Rarities[b:match('^(%w+):')].Tier
-		return tierA < tierB
+	table.sort(names, function(a, b)
+		local tierA = self.Rarities[a].Tier
+		local tierB = self.Rarities[b].Tier
+		return tierA == tierB and a < b or tierA < tierB
 	end)
-	return table.concat(lines,"\n")
+	local lines = table.create(#names)
+	for index, name in ipairs(names) do
+		local def = self.Rarities[name]
+		local prob = def.Base + luckModifier(effLuck, def.Tier) + bannerModifier(def, self.Banners)
+		lines[index] = string.format("%s: %.2f%%", name, math.max(prob, 0) * 100)
+	end
+	return table.concat(lines, "\n")
 end
 
 function RNG:getNextRollChances(state: RNGState, luck: number?): {[RarityName]: number}
@@ -236,17 +245,22 @@ function RNG:getExpectedRollsFor(state:RNGState, rarity:RarityName, luck:number?
 end
 
 function RNG:getExpectedRollsText(state:RNGState,luck:number?): string
-	local lines={}
-	for name,_ in pairs(self.Rarities) do
-		local rolls = self:getExpectedRollsFor(state,name,luck)
-		table.insert(lines,string.format("%s: %.1f rolls",name,rolls))
-	end
-	table.sort(lines,function(a,b)
-		local tierA = self.Rarities[a:match("^(%w+):")].Tier
-		local tierB = self.Rarities[b:match("^(%w+):")].Tier
-		return tierA < tierB
+	-- Calculate the normalized distribution once instead of once per rarity.
+	local chances = self:getNextRollChances(state, luck)
+	local names = {}
+	for name in pairs(self.Rarities) do names[#names + 1] = name end
+	table.sort(names, function(a, b)
+		local tierA = self.Rarities[a].Tier
+		local tierB = self.Rarities[b].Tier
+		return tierA == tierB and a < b or tierA < tierB
 	end)
-	return table.concat(lines,"\n")
+	local lines = table.create(#names)
+	for index, name in ipairs(names) do
+		local chance = chances[name] or 0
+		local rolls = if chance > 0 then 1 / chance else math.huge
+		lines[index] = string.format("%s: %.1f rolls", name, rolls)
+	end
+	return table.concat(lines, "\n")
 end
 
 function RNG:getPityText(state:RNGState): string
