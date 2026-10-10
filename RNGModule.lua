@@ -28,6 +28,12 @@ export type RNGEngine = {
 	getPityText: (self: RNGEngine, state: RNGState) -> string,
 }
 
+local function validateLuck(luck: number?): number
+    local value = if luck == nil then 1 else luck
+    assert(type(value) == "number" and value == value and value >= 0 and value < math.huge, "Invalid luck")
+    return value
+end
+
 local function luckModifier(luck: number, tier: number): number
 	return math.log(luck + 1) * tier * 0.01
 end
@@ -55,7 +61,18 @@ local function bannerModifier(def: RarityDef, banners: {BannerRule}?): number
 end
 
 function RNG.new(config: EngineConfig): RNGEngine
-	assert(config and config.Rarities, "Rarities required")
+	assert(type(config) == "table" and type(config.Rarities) == "table", "Rarities required")
+    local count = 0
+    for name, def in pairs(config.Rarities) do
+        assert(type(name) == "string" and name ~= "", "Rarity names must be nonempty strings")
+        assert(type(def) == "table", "Each rarity must define a Tier and Base")
+        assert(type(def.Tier) == "number" and def.Tier == def.Tier and def.Tier >= 0
+            and def.Tier % 1 == 0 and def.Tier < math.huge, "Rarity Tier must be a finite nonnegative integer")
+        assert(type(def.Base) == "number" and def.Base == def.Base and def.Base >= 0
+            and def.Base < math.huge, "Rarity Base must be finite and nonnegative")
+        count += 1
+    end
+    assert(count > 0, "At least one rarity is required")
 	local engine: RNGEngine = setmetatable({Rarities = config.Rarities, Pity = config.Pity, Banners = config.Banners or {}}, RNG)
 	return engine
 end
@@ -160,7 +177,14 @@ function RNG:roll(state: RNGState, luck: number?, rollCost: number?, currency: {
 			lowestName = name
 		end
 	end
-	return {Rarity = lowestName, Tier = lowestTier ~= math.huge and lowestTier or 0}
+	-- A fallback roll still awards a real rarity. Keep the visible streak
+    -- and last-reward bookkeeping accurate, while retaining GlobalFails,
+    -- which tracks draws that missed the weighted rarity selection.
+    state.LastRarity = lowestName
+    state.LastTier = lowestTier
+    state.TierFails[lowestTier] = 0
+    state.RarityFails[lowestName] = 0
+	return {Rarity = lowestName, Tier = lowestTier}
 end
 
 function RNG:bulk(state: RNGState, rolls: number, luck: number?, rollCost: number?, currency: {[string]: number}?, poolName: string?)
@@ -189,7 +213,7 @@ function RNG:bulk(state: RNGState, rolls: number, luck: number?, rollCost: numbe
 end
 
 function RNG:getExpected(luck: number?): {[RarityName]: number}
-	local effLuck = luck or 1
+	local effLuck = validateLuck(luck)
 	local out: {[RarityName]: number} = {}
 	for name, def in pairs(self.Rarities) do
 		out[name] = def.Base + luckModifier(effLuck, def.Tier)
@@ -206,7 +230,7 @@ function RNG:getTierDryStreak(state: RNGState, tier: number): number
 end
 
 function RNG:getChanceText(luck: number?): string
-	local effLuck = luck or 1
+	local effLuck = validateLuck(luck)
 	local names = {}
 	for name in pairs(self.Rarities) do
 		names[#names + 1] = name
@@ -226,7 +250,7 @@ function RNG:getChanceText(luck: number?): string
 end
 
 function RNG:getNextRollChances(state: RNGState, luck: number?): {[RarityName]: number}
-	local effLuck = luck or 1
+	local effLuck = validateLuck(luck)
 	local out = {}
 	for name, def in pairs(self.Rarities) do
 		local tier = def.Tier
